@@ -3,6 +3,78 @@ export type GateStatus = 'READY' | 'BLOCKED' | 'PENDING';
 export type Role = 'human' | 'agent';
 export type CheckKind = 'CODE' | 'TEST' | 'REGRESSION' | 'REPLAY' | 'RUNTIME' | 'HUMAN' | 'BUDGET';
 
+export type HypothesisState = 'ACTIVE' | 'CONFIRMED' | 'REJECTED' | 'INCONCLUSIVE';
+export type FamilyState = 'ACTIVE' | 'EXHAUSTED';
+export type ComparativeGateStatus = 'ELIGIBLE' | 'INELIGIBLE' | 'PENDING' | 'NO_WINNER';
+
+export type Problem = {
+  id: string;
+  title: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Hypothesis = {
+  id: string;
+  problemId: string;
+  familyId: string;
+  claim: string;
+  experiment: string;
+  requiredEvidence: string[];
+  candidateRef: string;
+  candidateSha: string;
+  state: HypothesisState;
+  evidence: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CandidateFamily = {
+  id: string;
+  name: string;
+  description?: string;
+  state: FamilyState;
+  hypotheses: string[];
+  exhaustedAt?: string;
+  exhaustedReason?: string;
+  reopenEvidence?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FailureMemoryEntry = {
+  id: string;
+  hypothesisId: string;
+  familyId: string;
+  hypothesis: string;
+  family: string;
+  result: 'REJECTED' | 'INCONCLUSIVE';
+  evidence: string[];
+  candidateSha: string;
+  reason: string;
+  recordedAt: string;
+};
+
+export type ComparativeCandidate = {
+  candidateSha: string;
+  hypothesisId: string;
+  familyId: string;
+  gateStatus: GateStatus;
+  humanCheckStatus: CheckStatus;
+  criticalFailures: string[];
+  evidenceSummary: string;
+};
+
+export type ComparativeGateEvaluation = {
+  status: ComparativeGateStatus;
+  eligibleCandidates: ComparativeCandidate[];
+  ineligibleCandidates: Array<ComparativeCandidate & { ineligibilityReason: string }>;
+  winner?: ComparativeCandidate;
+  reason: string;
+  evaluatedAt: string;
+};
+
 export type GilgalCheck = {
   id: string;
   label: string;
@@ -27,6 +99,16 @@ export type HumanApproval = {
   decision: 'PASS' | 'FAIL';
   approvedAt: string;
   approvedBy: 'human';
+};
+
+export type HumanDecision = {
+  contractId: string;
+  stableSha: string;
+  candidateSha: string;
+  decision: 'PASS' | 'FAIL';
+  timestamp: string;
+  source: 'human';
+  reason?: string;
 };
 
 export type ChangeBudgetLimits = {
@@ -98,10 +180,16 @@ export type CockpitData = {
   candidate: CandidateState;
   checks: GilgalCheck[];
   approvals: HumanApproval[];
+  humanDecisions: HumanDecision[];
   budget: ChangeBudgetLimits;
   memory: MemoryContract[];
   replays: ReplayContract[];
   history: HistoryCycle[];
+  problems: Problem[];
+  hypotheses: Hypothesis[];
+  candidateFamilies: CandidateFamily[];
+  failureMemory: FailureMemoryEntry[];
+  comparativeGate: ComparativeGateEvaluation | null;
 };
 
 export type GateReason = {

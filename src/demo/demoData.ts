@@ -49,6 +49,7 @@ export const demoData: CockpitData = {
     },
   ],
   approvals: [],
+  humanDecisions: [],
   budget: limits,
   memory: [
     { id: 'app-starts', label: 'App starts', stableStatus: 'PASS', candidateStatus: 'PASS' },
@@ -88,6 +89,11 @@ export const demoData: CockpitData = {
       createdAt: '2026-08-23T09:00:00.000Z', completedAt: '2026-08-23T16:35:00.000Z',
     },
   ],
+  problems: [],
+  hypotheses: [],
+  candidateFamilies: [],
+  failureMemory: [],
+  comparativeGate: null,
 };
 
 export function freshDemoData(): CockpitData {

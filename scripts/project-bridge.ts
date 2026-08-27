@@ -1,11 +1,32 @@
 import { spawn } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { basename, resolve } from 'node:path';
+import { basename, resolve, dirname } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
 
+interface ProjectMetadata {
+  name: string;
+  path: string;
+  url: string;
+  openLabel: string;
+  description?: string;
+}
+
 const DEFAULT_PROJECT_ROOT = 'D:\\SINUCA-GILGAL';
+const COCKPIT_ROOT = resolve(dirname(new URL(import.meta.url).pathname), '..');
+
+function loadProjectMetadata(projectRoot: string): ProjectMetadata | null {
+  const configPath = resolve(projectRoot, 'project.config.json');
+  if (existsSync(configPath)) {
+    try { return readJson(configPath) as ProjectMetadata; } catch { }
+  }
+  const cockpitConfigPath = resolve(COCKPIT_ROOT, 'project.config.json');
+  if (existsSync(cockpitConfigPath)) {
+    try { return readJson(cockpitConfigPath) as ProjectMetadata; } catch { }
+  }
+  return null;
+}
 
 function git(projectRoot: string, args: string[]): string {
   try { return execFileSync('git', args, { cwd: projectRoot, encoding: 'utf8' }).trim(); } catch { return ''; }
@@ -26,12 +47,17 @@ export function readProject(projectRoot = process.env.GILGAL_COCKPIT_PROJECT ?? 
   const configPath = resolve(projectRoot, 'gilgal.sentinel.json');
   if (!existsSync(configPath)) throw new Error(`Projeto GILGAL não encontrado em ${projectRoot}.`);
   const latest = latestReport(projectRoot);
+  const metadata = loadProjectMetadata(projectRoot);
   return {
     project: {
-      name: basename(projectRoot).replaceAll('-', ' '), path: projectRoot,
-      gameUrl: process.env.GILGAL_COCKPIT_PROJECT_URL ?? 'http://127.0.0.1:5180/',
-      branch: git(projectRoot, ['branch', '--show-current']), headSha: git(projectRoot, ['rev-parse', 'HEAD']),
-      dirty: Boolean(git(projectRoot, ['status', '--porcelain'])), reportPath: latest?.path ?? null,
+      name: metadata?.name ?? basename(projectRoot).replaceAll('-', ' '),
+      path: projectRoot,
+      gameUrl: metadata?.url ?? process.env.GILGAL_COCKPIT_PROJECT_URL ?? 'http://127.0.0.1:5180/',
+      openLabel: metadata?.openLabel ?? 'ABRIR PROJETO',
+      branch: git(projectRoot, ['branch', '--show-current']),
+      headSha: git(projectRoot, ['rev-parse', 'HEAD']),
+      dirty: Boolean(git(projectRoot, ['status', '--porcelain'])),
+      reportPath: latest?.path ?? null,
     },
     config: readJson(configPath), report: latest?.report ?? null,
   };
@@ -76,7 +102,7 @@ export function gilgalProjectBridge(): Plugin {
           if (url === '/api/project' && request.method === 'GET') return sendJson(response, 200, { data: readProject(projectRoot) });
           if (url === '/api/project/run-sentinel' && request.method === 'POST') {
             const run = await runCli(projectRoot, ['check']);
-            if (![0, 2].includes(run.exitCode)) return sendJson(response, 500, { message: `Sentinel falhou (exit ${run.exitCode}).`, output: run.output.slice(-4000) });
+            if (run.exitCode === 3 || run.exitCode === 4) return sendJson(response, 500, { message: `Sentinel erro operacional (exit ${run.exitCode}).`, output: run.output.slice(-4000) });
             return sendJson(response, 200, { data: readProject(projectRoot), message: `Sentinel concluído com exit ${run.exitCode}.` });
           }
           if (url === '/api/project/approve' && request.method === 'POST') {
@@ -87,7 +113,7 @@ export function gilgalProjectBridge(): Plugin {
             const approval = await runCli(projectRoot, ['approve', body.contractId]);
             if (approval.exitCode !== 0) return sendJson(response, 500, { message: 'Não foi possível registrar a aprovação.', output: approval.output.slice(-4000) });
             const check = await runCli(projectRoot, ['check']);
-            if (![0, 2].includes(check.exitCode)) return sendJson(response, 500, { message: 'Aprovação registrada, mas a nova análise falhou.', output: check.output.slice(-4000) });
+            if (check.exitCode === 3 || check.exitCode === 4) return sendJson(response, 500, { message: 'Aprovação registrada, mas a nova análise falhou.', output: check.output.slice(-4000) });
             return sendJson(response, 200, { data: readProject(projectRoot), message: 'Aprovação humana vinculada ao SHA atual e Sentinel executado novamente.' });
           }
           return sendJson(response, 404, { message: 'Rota operacional não encontrada.' });

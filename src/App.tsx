@@ -1,6 +1,7 @@
 import { effectiveCheckStatus, isBudgetExceeded } from './domain/gate';
-import type { CheckStatus, GilgalCheck } from './domain/types';
+import type { CheckStatus, GilgalCheck, ComparativeGateStatus } from './domain/types';
 import { useGilgal } from './state/GilgalStateProvider';
+import { useState } from 'react';
 
 type DisplayStatus = CheckStatus | 'READY' | 'BLOCKED';
 
@@ -18,6 +19,7 @@ function ProtocolLabel({ children }: { children: React.ReactNode }) {
 
 function CheckLine({ check }: { check: GilgalCheck }) {
   const { state } = useGilgal();
+  if (!state) return null;
   const status = effectiveCheckStatus(check, state);
   return (
     <article className="check-line">
@@ -47,8 +49,47 @@ function BudgetLine({ label, used, limit }: { label: string; used: number; limit
 }
 
 export function App() {
-  const { state, gate, notice, mode, project, busy, setRole, decideHuman, changeBudget, simulateShaChange, promote, reset, refreshEvidence, runSentinel } = useGilgal();
+  const { state, gate, notice, mode, project, busy, setRole, decideHuman, decideHumanDecision, changeBudget, simulateShaChange, promote, reset, refreshEvidence, runSentinel } = useGilgal();
   const isLive = mode === 'live';
+  const isLoading = mode === 'loading';
+  const [failReason, setFailReason] = useState('');
+
+  if (isLoading || !state || !gate) {
+    return (
+      <div className="app-shell">
+        <header className="app-header">
+          <div className="brand"><span className="brand-mark">G</span><div><strong>GILGAL COCKPIT</strong><p>A última versão boa permanece protegida.</p></div></div>
+          <span className="demo-badge"><i /> CONECTANDO AO PROJETO REAL...</span>
+        </header>
+        <main>
+          <section className="project-bar" data-section="project-connection">
+            <div className="loading-skeleton">
+              <div className="skeleton-line skeleton-title"></div>
+              <div className="skeleton-line skeleton-text"></div>
+              <div className="skeleton-line skeleton-text short"></div>
+            </div>
+            <p className="operation-notice" role="status">{notice}</p>
+          </section>
+          <section className="decision-center decision-center--pending" data-section="gate">
+            <div className="loading-skeleton">
+              <div className="skeleton-line skeleton-title"></div>
+              <div className="skeleton-line skeleton-text"></div>
+              <div className="skeleton-line skeleton-text"></div>
+            </div>
+          </section>
+          <section className="cycle-overview" data-section="cycle-summary">
+            <div className="loading-skeleton">
+              <article className="skeleton-card"><div className="skeleton-line skeleton-title"></div><div className="skeleton-line"></div><div className="skeleton-line"></div></article>
+              <article className="skeleton-card"><div className="skeleton-line skeleton-title"></div><div className="skeleton-line"></div><div className="skeleton-line"></div></article>
+              <article className="skeleton-card"><div className="skeleton-line skeleton-title"></div><div className="skeleton-line"></div><div className="skeleton-line"></div></article>
+            </div>
+          </section>
+        </main>
+        <footer><strong>CARREGANDO EVIDÊNCIA REAL...</strong><p>Aguardando dados do Sentinel do projeto conectado.</p></footer>
+      </div>
+    );
+  }
+
   const checks = state.checks.map((check) => ({ check, status: effectiveCheckStatus(check, state) }));
   const attentionChecks = checks.filter(({ status }) => status !== 'PASS');
   const passCount = checks.filter(({ status }) => status === 'PASS').length;
@@ -79,7 +120,7 @@ export function App() {
     <div className="app-shell">
       <header className="app-header">
         <div className="brand"><span className="brand-mark">G</span><div><strong>GILGAL COCKPIT</strong><p>A última versão boa permanece protegida.</p></div></div>
-        <span className={`demo-badge ${isLive ? 'demo-badge--live' : ''}`}><i /> {isLive ? 'PROJETO REAL CONECTADO' : mode === 'loading' ? 'CONECTANDO...' : 'LOCAL DEMO MODE'}</span>
+        <span className={`demo-badge ${isLive ? 'demo-badge--live' : ''}`}><i /> {isLive ? 'PROJETO REAL CONECTADO' : 'LOCAL DEMO MODE'}</span>
       </header>
 
       <main>
@@ -87,7 +128,7 @@ export function App() {
           <div><ProtocolLabel>PROJETO EM VALIDAÇÃO</ProtocolLabel><strong>{isLive ? project?.name : 'Demonstração local'}</strong><code>{isLive ? project?.path : 'Dados fictícios para testes internos'}</code></div>
           <div className="project-meta">{isLive && <><span>BRANCH <Sha>{project?.branch ?? '—'}</Sha></span><span>WORKTREE <b>{project?.dirty ? 'ALTERADA' : 'LIMPA'}</b></span></>}</div>
           <div className="project-actions">
-            {isLive && <a className="secondary-link" href={project?.gameUrl} target="_blank" rel="noreferrer">ABRIR SINUCA</a>}
+            {isLive && <a className="secondary-link" href={project?.gameUrl} target="_blank" rel="noreferrer">{project?.openLabel ?? 'ABRIR PROJETO'}</a>}
             <button className="secondary-action" disabled={busy || !isLive} onClick={() => void refreshEvidence()}>ATUALIZAR</button>
             <button className="primary-action" disabled={busy || !isLive} onClick={() => void runSentinel()}>{busy ? 'EXECUTANDO...' : 'EXECUTAR SENTINEL'}</button>
           </div>
@@ -113,8 +154,19 @@ export function App() {
             ) : humanCheck && ['PENDING', 'STALE'].includes(humanCheck.status) ? (
               <>
                 <span className="action-title">Revisão humana necessária</span>
-                {isLive && <a className="game-check-link" href={project?.gameUrl} target="_blank" rel="noreferrer">1. ABRIR E TESTAR A SINUCA</a>}
-                <div><button className="primary-action" disabled={busy || state.role === 'agent'} onClick={() => decideHuman('PASS')}>{isLive ? '2. APROVAR ESTE SHA' : 'APROVAR'}</button><button className="secondary-action" disabled={busy || state.role === 'agent'} onClick={() => decideHuman('FAIL')}>REPROVAR</button></div>
+                {isLive && <a className="game-check-link" href={project?.gameUrl} target="_blank" rel="noreferrer">1. ABRIR E TESTAR {project?.name?.toUpperCase()}</a>}
+                <div>
+                  <button className="primary-action" disabled={busy || state.role === 'agent'} onClick={() => decideHuman('PASS')}>{isLive ? '2. APROVAR ESTE SHA' : 'APROVAR'}</button>
+                  <button className="secondary-action" disabled={busy || state.role === 'agent'} onClick={() => decideHumanDecision(humanCheck.check.id, 'FAIL', failReason || undefined)}>REPROVAR</button>
+                </div>
+                {!isLive && (
+                  <div className="fail-reason-input">
+                    <label>
+                      Justificativa (opcional):
+                      <input type="text" value={failReason} onChange={(e) => setFailReason(e.target.value)} placeholder="Motivo da reprovação..." />
+                    </label>
+                  </div>
+                )}
                 {state.role === 'agent' && <small>O AGENT não pode aprovar este Human Check.</small>}
               </>
             ) : (
@@ -202,6 +254,131 @@ export function App() {
             <p>{notice}</p>
           </div>
         </details>}
+
+        <section className="investigation" data-section="investigation">
+          <div className="section-title"><div><ProtocolLabel>INVESTIGAÇÃO</ProtocolLabel><h2>GILGAL 0.4 — Investigação Ativa</h2><p>Registro estruturado de hipóteses, famílias de estratégia e memória de falhas.</p></div></div>
+
+          <div className="investigation-grid">
+            <article className="investigation-card">
+              <ProtocolLabel>PROBLEMA</ProtocolLabel>
+              {state.problems.length > 0 ? (
+                <div className="problem-list">
+                  {state.problems.map((p) => (
+                    <div key={p.id} className="problem-item">
+                      <strong>{p.id}</strong>: {p.title}
+                      {p.description && <p>{p.description}</p>}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="empty-state">Nenhum problema registrado. Use o ledger para iniciar uma investigação.</p>
+              )}
+            </article>
+
+            <article className="investigation-card">
+              <ProtocolLabel>HIPÓTESE ATIVA</ProtocolLabel>
+              {state.hypotheses.filter((h) => h.state === 'ACTIVE').length > 0 ? (
+                <div className="hypothesis-list">
+                  {state.hypotheses.filter((h) => h.state === 'ACTIVE').map((h) => (
+                    <div key={h.id} className="hypothesis-item">
+                      <strong>{h.id}</strong> (família: {h.familyId})
+                      <p>Claim: {h.claim}</p>
+                      <p>Evidência requerida: {h.requiredEvidence.join(', ') || '—'}</p>
+                      <small>Candidate: {h.candidateSha} · {h.evidence.length} evidências</small>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="empty-state">Nenhuma hipótese ATIVA. Hipóteses CONFIRMED/REJECTED/INCONCLUSIVE não aparecem aqui.</p>
+              )}
+            </article>
+
+            <article className="investigation-card">
+              <ProtocolLabel>FAMÍLIA DE ESTRATÉGIA</ProtocolLabel>
+              {state.candidateFamilies.length > 0 ? (
+                <div className="family-list">
+                  {state.candidateFamilies.map((f) => (
+                    <div key={f.id} className={`family-item family-item--${f.state.toLowerCase()}`}>
+                      <div className="family-header">
+                        <strong>{f.id}</strong>: {f.name}
+                        <Status value={f.state === 'EXHAUSTED' ? 'FAIL' : 'PASS'} />
+                      </div>
+                      <p>{f.description || 'Sem descrição'}</p>
+                      <p>Hipóteses: {f.hypotheses.join(', ') || '—'}</p>
+                      {f.state === 'EXHAUSTED' && (
+                        <p className="exhausted-notice">
+                          <strong>STRATEGY EXHAUSTED</strong>
+                          {f.exhaustedReason && <span> — {f.exhaustedReason}</span>}
+                          {f.reopenEvidence && <span> · Reaberto com: {f.reopenEvidence}</span>}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="empty-state">Nenhuma família de estratégia registrada.</p>
+              )}
+            </article>
+
+            <article className="investigation-card">
+              <ProtocolLabel>FAILURE MEMORY</ProtocolLabel>
+              {state.failureMemory.length > 0 ? (
+                <div className="failure-memory-list">
+                  {state.failureMemory.map((fm) => (
+                    <div key={fm.id} className="failure-memory-item">
+                      <div className="fm-header">
+                        <strong>Hypothesis:</strong> {fm.hypothesis}
+                        <span className="fm-result">{fm.result}</span>
+                      </div>
+                      <div><strong>Strategy family:</strong> {fm.family}</div>
+                      <div><strong>Result:</strong> {fm.result}</div>
+                      <div><strong>Evidence:</strong> {fm.evidence.join('; ') || '—'}</div>
+                      <div><strong>Candidate SHA:</strong> <Sha>{fm.candidateSha}</Sha></div>
+                      <div><strong>Reason:</strong> {fm.reason}</div>
+                      <small>Recorded: {new Date(fm.recordedAt).toLocaleString('pt-BR')}</small>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="empty-state">Nenhuma entrada na Failure Memory. Hipóteses REJECTED/INCONCLUSIVE são registradas aqui.</p>
+              )}
+            </article>
+
+            <article className="investigation-card">
+              <ProtocolLabel>COMPARATIVE GATE</ProtocolLabel>
+              {state.comparativeGate ? (
+                <div className="comparative-gate">
+                  <div className="cg-status">
+                    <Status value={state.comparativeGate.status === 'NO_WINNER' ? 'FAIL' : state.comparativeGate.status === 'PENDING' ? 'PENDING' : 'PASS'} />
+                    <span>{state.comparativeGate.status}</span>
+                  </div>
+                  <p>{state.comparativeGate.reason}</p>
+                  {state.comparativeGate.winner && (
+                    <div className="cg-winner">
+                      <strong>Winner (eligible):</strong> <Sha>{state.comparativeGate.winner.candidateSha}</Sha>
+                      <small>Hypothesis: {state.comparativeGate.winner.hypothesisId} · Family: {state.comparativeGate.winner.familyId}</small>
+                      <p className="ready-rule">READY ≠ PROMOTED — Human decision still required.</p>
+                    </div>
+                  )}
+                  {state.comparativeGate.eligibleCandidates.length > 0 && (
+                    <details>
+                      <summary>Eligible candidates ({state.comparativeGate.eligibleCandidates.length})</summary>
+                      <ul>{state.comparativeGate.eligibleCandidates.map((c) => <li key={c.candidateSha}><Sha>{c.candidateSha}</Sha> — hypothesis: {c.hypothesisId}</li>)}</ul>
+                    </details>
+                  )}
+                  {state.comparativeGate.ineligibleCandidates.length > 0 && (
+                    <details className="ineligible">
+                      <summary>Ineligible candidates ({state.comparativeGate.ineligibleCandidates.length})</summary>
+                      <ul>{state.comparativeGate.ineligibleCandidates.map((c) => <li key={c.candidateSha}><Sha>{c.candidateSha}</Sha> — {c.ineligibilityReason}</li>)}</ul>
+                    </details>
+                  )}
+                </div>
+              ) : (
+                <p className="empty-state">Comparative Gate não executado. Use a operação para comparar candidates concorrentes.</p>
+              )}
+            </article>
+          </div>
+        </section>
 
         <section className="history" data-section="history">
           <div className="section-title"><div><ProtocolLabel>HISTORY</ProtocolLabel><h2>Histórico preservado</h2><p>FAILED é evidência. Nenhuma tentativa é apagada silenciosamente.</p></div></div>

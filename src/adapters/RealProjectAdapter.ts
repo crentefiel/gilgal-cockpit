@@ -15,7 +15,7 @@ type ReportItem = {
 };
 
 export type RealProjectPayload = {
-  project: { name: string; path: string; gameUrl: string; branch: string; headSha: string; dirty: boolean; reportPath: string | null };
+  project: { name: string; path: string; gameUrl: string; openLabel: string; branch: string; headSha: string; dirty: boolean; reportPath: string | null };
   config: { stable?: { ref?: string }; changeBudget?: Partial<CockpitData['budget']> };
   report: {
     timestamp?: string;
@@ -84,10 +84,16 @@ export function mapRealProject(payload: RealProjectPayload): CockpitData {
     candidate: { cycle: payload.project.branch, branch: payload.project.branch, intent: `Validar ${payload.project.name} pelo GILGAL Cockpit`, baseStableSha: stableSha, sha: candidateSha, diffSummary: changedFiles.slice(0, 6), usage: { files: changedFiles.length, insertions, deletions, changedLines: insertions + deletions } },
     checks,
     approvals: manualApprovals.map((item) => ({ checkId: item.id, stableSha, candidateSha, decision: 'PASS', approvedAt: report?.timestamp ?? '', approvedBy: 'human' })),
+    humanDecisions: [],
     budget,
     memory: contracts.filter((item) => item.type !== 'manual').map((item) => ({ id: item.id, label: item.name ?? item.id, stableStatus: statusOf(item.stableResult), candidateStatus: evidenceStale ? 'STALE' : statusOf(item.candidateResult ?? item.status) })),
     replays: contracts.filter((item) => item.type === 'replay').map((item) => ({ id: item.id, pastRegression: item.replayOrigin ?? item.name ?? item.id, stableStatus: statusOf(item.stableResult), candidateStatus: evidenceStale ? 'STALE' : statusOf(item.candidateResult ?? item.status), critical: item.critical ?? true })),
     history: [],
+    problems: [],
+    hypotheses: [],
+    candidateFamilies: [],
+    failureMemory: [],
+    comparativeGate: null,
   };
 }
 

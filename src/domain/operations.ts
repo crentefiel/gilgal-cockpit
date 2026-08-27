@@ -1,5 +1,6 @@
 import { evaluateGilgalGate } from './gate';
-import type { ActionResult, ChangeBudgetLimits, CockpitData, HistoryCycle } from './types';
+import { evaluateComparativeGate } from './comparative-gate';
+import type { ActionResult, ChangeBudgetLimits, CockpitData, ComparativeCandidate, ComparativeGateEvaluation, FailureMemoryEntry, HistoryCycle, HumanDecision, Hypothesis, CandidateFamily, Problem } from './types';
 
 function result(ok: boolean, state: CockpitData, message: string): ActionResult {
   return { ok, state, message };
@@ -25,6 +26,47 @@ export function decideHumanCheck(
   };
   const approvals = [...state.approvals.filter((item) => item.checkId !== checkId), approval];
   return result(true, { ...state, approvals }, `Human Check marked ${decision} for ${state.candidate.sha}.`);
+}
+
+export function decideHumanDecision(
+  state: CockpitData,
+  contractId: string,
+  decision: 'PASS' | 'FAIL',
+  reason: string | undefined,
+  now = new Date().toISOString(),
+): ActionResult {
+  if (state.role !== 'human') return result(false, state, 'Agent cannot create HumanDecision.');
+
+  const humanDecision: HumanDecision = {
+    contractId,
+    stableSha: state.stable.sha,
+    candidateSha: state.candidate.sha,
+    decision,
+    timestamp: now,
+    source: 'human',
+    reason,
+  };
+
+  const humanDecisions = [...state.humanDecisions.filter((d) => d.contractId !== contractId || d.candidateSha !== state.candidate.sha), humanDecision];
+
+  if (decision === 'FAIL') {
+    const failureCycle: HistoryCycle = {
+      id: `human-fail-${state.candidate.cycle}-${now}`,
+      cycle: state.candidate.cycle,
+      intent: state.candidate.intent,
+      stableSha: state.stable.sha,
+      candidateSha: state.candidate.sha,
+      result: 'FAILED',
+      failureReason: `Human FAIL: ${reason ?? 'Nenhuma justificativa fornecida'}`,
+      budget: { limits: state.budget, usage: state.candidate.usage },
+      checks: state.checks.map((check) => ({ id: check.id, status: check.status })),
+      createdAt: now,
+      completedAt: now,
+    };
+    return result(true, { ...state, humanDecisions, history: [failureCycle, ...state.history] }, `Human FAIL recorded for ${state.candidate.sha}. Candidate blocked.`);
+  }
+
+  return result(true, { ...state, humanDecisions }, `Human ${decision} recorded for ${state.candidate.sha}.`);
 }
 
 export function updateChangeBudget(state: CockpitData, budget: ChangeBudgetLimits): ActionResult {
@@ -119,5 +161,94 @@ export function promoteCandidate(
     nextState,
     `LOCAL DEMO PROMOTION — Previous STABLE: ${previousStableSha}; New STABLE: ${state.candidate.sha}. No Git repository was modified by this demo action.`,
   );
+}
+
+export function addProblem(
+  state: CockpitData,
+  problem: Omit<Problem, 'createdAt' | 'updatedAt'>,
+  now = new Date().toISOString(),
+): ActionResult {
+  if (state.role !== 'human') return result(false, state, 'Agent cannot create Problem.');
+  const newProblem: Problem = { ...problem, createdAt: now, updatedAt: now };
+  return result(true, { ...state, problems: [...state.problems, newProblem] }, `Problem ${problem.id} created.`);
+}
+
+export function addHypothesis(
+  state: CockpitData,
+  hypothesis: Omit<Hypothesis, 'createdAt' | 'updatedAt'>,
+  now = new Date().toISOString(),
+): ActionResult {
+  if (state.role !== 'human') return result(false, state, 'Agent cannot create Hypothesis.');
+  const newHypothesis: Hypothesis = { ...hypothesis, createdAt: now, updatedAt: now };
+  return result(true, { ...state, hypotheses: [...state.hypotheses, newHypothesis] }, `Hypothesis ${hypothesis.id} added to ledger.`);
+}
+
+export function updateHypothesisState(
+  state: CockpitData,
+  hypothesisId: string,
+  newState: Hypothesis['state'],
+  evidence: string[],
+  now = new Date().toISOString(),
+): ActionResult {
+  if (state.role !== 'human') return result(false, state, 'Agent cannot update Hypothesis state.');
+  const hypotheses = state.hypotheses.map((h) =>
+    h.id === hypothesisId ? { ...h, state: newState, evidence: [...h.evidence, ...evidence], updatedAt: now } : h,
+  );
+  return result(true, { ...state, hypotheses }, `Hypothesis ${hypothesisId} state changed to ${newState}.`);
+}
+
+export function addCandidateFamily(
+  state: CockpitData,
+  family: Omit<CandidateFamily, 'createdAt' | 'updatedAt'>,
+  now = new Date().toISOString(),
+): ActionResult {
+  if (state.role !== 'human') return result(false, state, 'Agent cannot create Candidate Family.');
+  const newFamily: CandidateFamily = { ...family, createdAt: now, updatedAt: now };
+  return result(true, { ...state, candidateFamilies: [...state.candidateFamilies, newFamily] }, `Candidate Family ${family.id} created.`);
+}
+
+export function exhaustCandidateFamily(
+  state: CockpitData,
+  familyId: string,
+  reason: string,
+  now = new Date().toISOString(),
+): ActionResult {
+  if (state.role !== 'human') return result(false, state, 'Agent cannot exhaust Candidate Family.');
+  const candidateFamilies = state.candidateFamilies.map((f) =>
+    f.id === familyId ? { ...f, state: 'EXHAUSTED' as const, exhaustedAt: now, exhaustedReason: reason, updatedAt: now } : f,
+  );
+  return result(true, { ...state, candidateFamilies }, `Candidate Family ${familyId} marked EXHAUSTED: ${reason}`);
+}
+
+export function reopenCandidateFamily(
+  state: CockpitData,
+  familyId: string,
+  newEvidence: string,
+  now = new Date().toISOString(),
+): ActionResult {
+  if (state.role !== 'human') return result(false, state, 'Agent cannot reopen Candidate Family.');
+  const candidateFamilies = state.candidateFamilies.map((f) =>
+    f.id === familyId ? { ...f, state: 'ACTIVE' as const, reopenEvidence: newEvidence, exhaustedAt: undefined, exhaustedReason: undefined, updatedAt: now } : f,
+  );
+  return result(true, { ...state, candidateFamilies }, `Candidate Family ${familyId} reopened with new evidence: ${newEvidence}`);
+}
+
+export function recordFailureMemory(
+  state: CockpitData,
+  entry: Omit<FailureMemoryEntry, 'recordedAt'>,
+  now = new Date().toISOString(),
+): ActionResult {
+  if (state.role !== 'human') return result(false, state, 'Agent cannot record Failure Memory.');
+  const failureMemory: FailureMemoryEntry = { ...entry, recordedAt: now };
+  return result(true, { ...state, failureMemory: [...state.failureMemory, failureMemory] }, `Failure Memory recorded for hypothesis ${entry.hypothesisId}.`);
+}
+
+export function evaluateComparativeGateForState(
+  state: CockpitData,
+  candidates: ComparativeCandidate[],
+  now = new Date().toISOString(),
+): ActionResult {
+  const evaluation = evaluateComparativeGate(candidates, state.hypotheses, state.candidateFamilies, state.failureMemory, now);
+  return result(true, { ...state, comparativeGate: evaluation }, `Comparative Gate evaluated: ${evaluation.status}. ${evaluation.reason}`);
 }
 
