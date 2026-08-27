@@ -1,0 +1,7 @@
+node_modules/
+dist/
+coverage/
+.gilgal/state/
+.gilgal/reports/
+*.local
+

@@ -1,0 +1,3 @@
+[submodule ".gilgal/reference"]
+	path = .gilgal/reference
+	url = https://github.com/crentefiel/gilgal-ai-workflow.git

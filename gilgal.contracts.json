@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "contracts": [
+    {
+      "id": "real-gilgal-gate-engine",
+      "name": "Gate engine contracts pass",
+      "critical": true,
+      "type": "command",
+      "command": "npm test"
+    }
+  ]
+}
+

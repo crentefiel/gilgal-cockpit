@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "stable": {
+    "ref": "main"
+  },
+  "candidate": {
+    "ref": "HEAD"
+  },
+  "checks": {
+    "typecheck": {
+      "enabled": true,
+      "critical": true,
+      "command": "npm run typecheck"
+    },
+    "tests": {
+      "enabled": true,
+      "critical": true,
+      "command": "npm test"
+    },
+    "build": {
+      "enabled": true,
+      "critical": true,
+      "command": "npm run build"
+    }
+  },
+  "changeBudget": {
+    "enabled": true,
+    "critical": true,
+    "maxFiles": 45,
+    "maxInsertions": 6500,
+    "maxDeletions": 500,
+    "maxChangedLines": 7000
+  },
+  "contractsFile": "gilgal.contracts.json",
+  "reports": {
+    "directory": ".gilgal/reports",
+    "json": true,
+    "markdown": true,
+    "includeDiff": false
+  },
+  "stateDirectory": ".gilgal/state",
+  "baselinesDirectory": ".gilgal/baselines",
+  "defaults": {
+    "timeoutMs": 120000,
+    "outputLimitBytes": 51200
+  },
+  "git": {
+    "requireCleanWorkingTree": true,
+    "requireStableAncestor": true
+  },
+  "gate": {
+    "blockOnNonCriticalFailure": false
+  }
+}
+
