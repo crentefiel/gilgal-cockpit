@@ -2,148 +2,201 @@ import { effectiveCheckStatus, isBudgetExceeded } from './domain/gate';
 import type { CheckStatus, GilgalCheck } from './domain/types';
 import { useGilgal } from './state/GilgalStateProvider';
 
-function Status({ value }: { value: CheckStatus | 'READY' | 'BLOCKED' }) {
-  return <span className={`status status--${value.toLowerCase().replace('_', '-')}`}>{value.replace('_', ' ')}</span>;
-}
+type DisplayStatus = CheckStatus | 'READY' | 'BLOCKED';
 
-function Eyebrow({ children }: { children: React.ReactNode }) {
-  return <p className="eyebrow">{children}</p>;
+function Status({ value }: { value: DisplayStatus }) {
+  return <span className={`status status--${value.toLowerCase().replace('_', '-')}`}>{value.replace('_', ' ')}</span>;
 }
 
 function Sha({ children }: { children: string }) {
   return <code className="sha">{children}</code>;
 }
 
-function CheckCard({ check }: { check: GilgalCheck }) {
+function ProtocolLabel({ children }: { children: React.ReactNode }) {
+  return <p className="protocol-label">{children}</p>;
+}
+
+function CheckLine({ check }: { check: GilgalCheck }) {
   const { state } = useGilgal();
   const status = effectiveCheckStatus(check, state);
   return (
-    <article className="check-card">
-      <div className="check-card__head">
-        <div><span className="check-kind">{check.kind}</span><h3>{check.label}</h3></div>
+    <article className="check-line">
+      <div>
+        <span className="check-kind">{check.kind}</span>
+        <strong>{check.label}</strong>
+        {check.evidence?.summary && <p>{check.evidence.summary}</p>}
+      </div>
+      <div className="check-evidence">
+        {check.evidence?.command && <code>{check.evidence.command}</code>}
+        <Sha>{state.candidate.sha}</Sha>
         <Status value={status} />
       </div>
-      <dl className="evidence-list">
-        <div><dt>Candidate</dt><dd><Sha>{state.candidate.sha}</Sha></dd></div>
-        {check.evidence?.command && <div><dt>Command</dt><dd><code>{check.evidence.command}</code></dd></div>}
-        {check.evidence?.exitCode !== undefined && <div><dt>Exit</dt><dd>{check.evidence.exitCode}</dd></div>}
-      </dl>
-      {check.evidence?.summary && <p className="fine-print">{check.evidence.summary}</p>}
-      <span className="demo-evidence">DEMO EVIDENCE</span>
     </article>
   );
 }
 
-function BudgetMetric({ label, used, limit }: { label: string; used: number; limit: number }) {
+function BudgetLine({ label, used, limit }: { label: string; used: number; limit: number }) {
   const exceeded = used > limit;
-  const percent = limit === 0 ? (used === 0 ? 0 : 100) : Math.min(100, (used / limit) * 100);
+  const width = limit === 0 ? (used ? 100 : 0) : Math.min((used / limit) * 100, 100);
   return (
-    <div className={`budget-metric ${exceeded ? 'budget-metric--exceeded' : ''}`}>
+    <div className={`budget-line ${exceeded ? 'budget-line--failed' : ''}`}>
       <div><span>{label}</span><strong>{used} / {limit}</strong></div>
-      <div className="budget-track"><span style={{ width: `${percent}%` }} /></div>
+      <div className="budget-bar"><i style={{ width: `${width}%` }} /></div>
     </div>
   );
 }
 
 export function App() {
   const { state, gate, notice, setRole, decideHuman, changeBudget, simulateShaChange, promote, reset } = useGilgal();
+  const checks = state.checks.map((check) => ({ check, status: effectiveCheckStatus(check, state) }));
+  const attentionChecks = checks.filter(({ status }) => status !== 'PASS');
+  const passCount = checks.filter(({ status }) => status === 'PASS').length;
+  const failCount = checks.filter(({ status }) => status === 'FAIL').length;
+  const pendingCount = checks.filter(({ status }) => ['PENDING', 'NOT_TESTED', 'STALE'].includes(status)).length;
   const budgetExceeded = isBudgetExceeded(state.budget, state.candidate.usage);
-  const humanCheck = state.checks.find((check) => check.kind === 'HUMAN');
-  const humanStatus = humanCheck ? effectiveCheckStatus(humanCheck, state) : 'NOT_TESTED';
-  const setLimit = (key: keyof typeof state.budget, value: string) => changeBudget({ ...state.budget, [key]: Number(value) });
-  const confirmReset = () => { if (window.confirm('Resetar todos os dados locais da demonstração?')) reset(); };
+  const humanCheck = checks.find(({ check }) => check.kind === 'HUMAN');
+  const memoryRegressions = state.memory.filter((contract) => contract.stableStatus === 'PASS' && contract.candidateStatus === 'FAIL');
+  const replayFailures = state.replays.filter((replay) => replay.candidateStatus === 'FAIL');
+
+  const gateMessage = gate.status === 'READY'
+    ? 'Todas as verificações obrigatórias do SHA atual passaram.'
+    : gate.status === 'BLOCKED'
+      ? 'A promoção foi recusada. Corrija o bloqueio antes de continuar.'
+      : humanCheck?.status === 'STALE'
+        ? 'A aprovação anterior venceu porque o SHA do CANDIDATE mudou.'
+        : 'Ainda falta uma verificação obrigatória para o SHA atual.';
+
+  const setLimit = (key: keyof typeof state.budget, value: string) => {
+    changeBudget({ ...state.budget, [key]: Number(value) });
+  };
+
+  const confirmReset = () => {
+    if (window.confirm('Resetar todos os dados locais da demonstração?')) reset();
+  };
 
   return (
-    <div className="cockpit-shell">
-      <header className="topbar">
-        <a className="brand" href="#top" aria-label="GILGAL Cockpit — início"><span className="brand-mark">G</span><span>GILGAL <strong>COCKPIT</strong></span></a>
-        <div className="topbar__controls">
-          <div className="role-switch" aria-label="Demo role">
-            <button className={state.role === 'human' ? 'active' : ''} onClick={() => setRole('human')}>HUMAN</button>
-            <button className={state.role === 'agent' ? 'active' : ''} onClick={() => setRole('agent')}>AGENT</button>
-          </div>
-          <span className="demo-mode"><i /> LOCAL DEMO MODE</span>
-        </div>
+    <div className="app-shell">
+      <header className="app-header">
+        <div className="brand"><span className="brand-mark">G</span><div><strong>GILGAL COCKPIT</strong><p>A última versão boa permanece protegida.</p></div></div>
+        <span className="demo-badge"><i /> LOCAL DEMO MODE</span>
       </header>
 
-      <main id="top">
-        <section className="hero">
-          <div><Eyebrow>GUARDED DEVELOPMENT / CONTROL SURFACE</Eyebrow><h1>A última versão boa<br />permanece <em>intocada.</em></h1></div>
-          <div className="hero-copy"><p>STABLE permanece protegida. CANDIDATE trabalha isolado. Sentinel reúne as evidências. Gate decide se existe base suficiente para promoção.</p><strong>A próxima promoção pode ser recusada.</strong></div>
+      <main>
+        <section className={`decision-center decision-center--${gate.status.toLowerCase()}`} data-section="gate">
+          <div className="decision-main">
+            <ProtocolLabel>GATE · DECISÃO DE PROMOÇÃO</ProtocolLabel>
+            <div className="decision-status"><Status value={gate.status} /><span>Candidate <Sha>{state.candidate.sha}</Sha></span></div>
+            <h1>{gateMessage}</h1>
+            <p className="decision-explanation">
+              {gate.status === 'READY'
+                ? 'O CANDIDATE pode ser submetido à decisão humana de promoção.'
+                : `O CANDIDATE ${state.candidate.sha} ainda não pode virar STABLE.`}
+            </p>
+            <p className="ready-rule">READY ≠ PROMOTED</p>
+          </div>
+
+          <div className="decision-actions">
+            {gate.status === 'READY' ? (
+              <button className="primary-action" disabled={state.role !== 'human'} onClick={promote}>PROMOVER A STABLE</button>
+            ) : humanCheck && ['PENDING', 'STALE'].includes(humanCheck.status) ? (
+              <>
+                <span className="action-title">Revisão humana necessária</span>
+                <div><button className="primary-action" disabled={state.role === 'agent'} onClick={() => decideHuman('PASS')}>APROVAR</button><button className="secondary-action" disabled={state.role === 'agent'} onClick={() => decideHuman('FAIL')}>REPROVAR</button></div>
+                {state.role === 'agent' && <small>O AGENT não pode aprovar este Human Check.</small>}
+              </>
+            ) : (
+              <span className="blocked-action">Promoção indisponível enquanto houver falha crítica.</span>
+            )}
+            <small>A ação é apenas uma simulação local. Nenhum Git será modificado.</small>
+          </div>
         </section>
 
-        <div className="notice" role="status"><span>LOCAL</span>{notice}</div>
+        <section className="cycle-overview" data-section="cycle-summary">
+          <article className="version-card version-card--stable">
+            <div><ProtocolLabel>STABLE</ProtocolLabel><span>Última versão boa verificada</span></div>
+            <Sha>{state.stable.sha}</Sha>
+            <dl><div><dt>Ciclo</dt><dd>{state.stable.cycle}</dd></div><div><dt>Contratos</dt><dd>{state.stable.verifiedContracts} verificados</dd></div></dl>
+            <strong className="protected-label">PROTEGIDA</strong>
+          </article>
 
-        <section className="state-grid" aria-label="Stable and candidate">
-          <article className="panel stable-panel">
-            <div className="panel-heading"><div><Eyebrow>01 / PROTECTED</Eyebrow><h2>STABLE</h2></div><span className="readonly">READ ONLY</span></div>
-            <p className="section-kicker">LAST KNOWN-GOOD VERIFIED STATE</p>
-            <div className="cycle-name">{state.stable.cycle}</div>
-            <dl className="data-grid">
-              <div><dt>Branch / ref</dt><dd>{state.stable.branch}</dd></div><div><dt>SHA</dt><dd><Sha>{state.stable.sha}</Sha></dd></div>
-              <div><dt>Promoted</dt><dd>{new Date(state.stable.promotedAt).toLocaleDateString('pt-BR')}</dd></div><div><dt>Contracts</dt><dd>{state.stable.verifiedContracts} verified</dd></div>
+          <article className="version-card version-card--candidate">
+            <div><ProtocolLabel>CANDIDATE</ProtocolLabel><span>Versão isolada em desenvolvimento</span></div>
+            <Sha>{state.candidate.sha}</Sha>
+            <dl><div><dt>Intenção</dt><dd>{state.candidate.intent}</dd></div><div><dt>Base STABLE</dt><dd>{state.candidate.baseStableSha}</dd></div></dl>
+            <Status value={gate.status} />
+          </article>
+
+          <article className="cycle-summary">
+            <ProtocolLabel>RESUMO DO CICLO</ProtocolLabel>
+            <div className="summary-numbers"><span><strong>{passCount}</strong> PASS</span><span><strong>{pendingCount}</strong> PENDING</span><span><strong>{failCount}</strong> FAIL</span></div>
+            <dl>
+              <div><dt>Linhas alteradas</dt><dd>{state.candidate.usage.changedLines} / {state.budget.maxChangedLines}</dd></div>
+              <div><dt>Change Budget</dt><dd>{budgetExceeded ? 'EXCEDIDO' : 'DENTRO DO LIMITE'}</dd></div>
+              <div><dt>Gate</dt><dd>{gate.status}</dd></div>
             </dl>
-            <p className="human-stamp">PROMOTED BY <strong>HUMAN</strong></p>
-          </article>
-
-          <article className="panel candidate-panel">
-            <div className="panel-heading"><div><Eyebrow>02 / LABORATORY</Eyebrow><h2>CANDIDATE / WORK</h2></div><Status value={gate.status} /></div>
-            <p className="section-kicker">CURRENT ISOLATED CHANGE</p>
-            <div className="candidate-intent"><span>Intent</span><strong>{state.candidate.intent}</strong></div>
-            <div className="sha-pair"><div><span>Base STABLE</span><Sha>{state.candidate.baseStableSha}</Sha></div><span>→</span><div><span>Candidate</span><Sha>{state.candidate.sha}</Sha></div></div>
-            <div className="diff-numbers"><div><strong>{state.candidate.usage.files}</strong><span>files</span></div><div><strong>+{state.candidate.usage.insertions}</strong><span>insertions</span></div><div><strong>−{state.candidate.usage.deletions}</strong><span>deletions</span></div><div><strong>{state.candidate.usage.changedLines}</strong><span>changed lines</span></div></div>
-            <ul className="diff-summary">{state.candidate.diffSummary.map((item) => <li key={item}>{item}</li>)}</ul>
-            <button className="text-button" onClick={simulateShaChange}>Simular mudança de SHA →</button>
           </article>
         </section>
 
-        <section className="section-block" id="sentinel">
-          <div className="section-heading"><div><Eyebrow>03 / EVIDENCE LAYER</Eyebrow><h2>SENTINEL</h2></div><p>Verifica o candidato. Não promove código.<br /><strong>Compilar não basta.</strong></p></div>
-          <div className="check-grid">{state.checks.filter((check) => ['CODE', 'TEST', 'RUNTIME'].includes(check.kind)).map((check) => <CheckCard key={check.id} check={check} />)}</div>
+        <section className="attention" data-section="attention">
+          <div className="section-title"><div><ProtocolLabel>PRECISA DE ATENÇÃO</ProtocolLabel><h2>O que falta para promover?</h2></div><span>{attentionChecks.length + (budgetExceeded ? 1 : 0)} item(ns)</span></div>
+          <div className="attention-list">
+            {budgetExceeded && <article className="attention-item attention-item--fail"><span>!</span><div><strong>CHANGE BUDGET</strong><p>SCOPE EXPANSION DETECTED</p></div><Status value="FAIL" /></article>}
+            {attentionChecks.map(({ check, status }) => <article className={`attention-item attention-item--${status === 'FAIL' ? 'fail' : 'pending'}`} key={check.id}><span>{status === 'FAIL' ? '!' : '○'}</span><div><strong>{check.label}</strong><p>{status === 'STALE' ? 'Aprovação ligada ao SHA anterior. Verificação humana necessária novamente.' : check.evidence?.summary ?? 'Verificação obrigatória ainda não concluída.'}</p><Sha>{state.candidate.sha}</Sha></div><Status value={status} /></article>)}
+            {!attentionChecks.length && !budgetExceeded && <div className="attention-empty"><span>✓</span><strong>Nenhuma pendência obrigatória.</strong></div>}
+          </div>
+          <div className="passed-strip"><span>Verificações concluídas</span>{checks.filter(({ status }) => status === 'PASS').map(({ check }) => <span className="pass-chip" key={check.id}>✓ {check.label}</span>)}{!budgetExceeded && <span className="pass-chip">✓ Change Budget</span>}</div>
+        </section>
 
-          <div className="memory-panel">
-            <div className="memory-intro"><Eyebrow>EXECUTABLE MEMORY</Eyebrow><h3>STABLE não é apenas backup.<br />STABLE é memória executável.</h3><p>O comportamento comprovado anteriormente é comparado com o candidato atual.</p></div>
-            <div className="memory-table" role="table" aria-label="Executable memory contracts">
-              <div className="memory-row memory-row--head" role="row"><span>CONTRACT</span><span>STABLE</span><span>CANDIDATE</span></div>
-              {state.memory.map((contract) => <div className="memory-row" role="row" key={contract.id}><strong>{contract.label}</strong><Status value={contract.stableStatus} /><Status value={contract.candidateStatus} /></div>)}
+        <section className="technical" data-section="sentinel-details">
+          <div className="section-title"><div><ProtocolLabel>SEGUNDO NÍVEL</ProtocolLabel><h2>Evidências técnicas</h2><p>Abra somente quando precisar investigar por que o Gate decidiu.</p></div></div>
+
+          <details className="detail-panel">
+            <summary><span><strong>SENTINEL</strong><small>Code Check, testes, runtime e Human Check</small></span><span>{passCount}/{checks.length} PASS</span></summary>
+            <div className="detail-content">{state.checks.map((check) => <CheckLine check={check} key={check.id} />)}</div>
+          </details>
+
+          <details className={`detail-panel ${memoryRegressions.length ? 'detail-panel--danger' : ''}`}>
+            <summary><span><strong>EXECUTABLE MEMORY</strong><small>Comparação STABLE × CANDIDATE</small></span><span>{state.memory.length} preservados · {memoryRegressions.length} regressões</span></summary>
+            {memoryRegressions.length > 0 && <div className="critical-banner">REGRESSION DETECTED</div>}
+            <div className="detail-content memory-table">
+              <div className="memory-row memory-row--head"><span>CONTRATO</span><span>STABLE</span><span>CANDIDATE</span></div>
+              {state.memory.map((contract) => <div className="memory-row" key={contract.id}><strong>{contract.label}</strong><Status value={contract.stableStatus} /><Status value={contract.candidateStatus} /></div>)}
             </div>
-          </div>
+          </details>
 
-          <div className="replay-section">
-            <div className="subheading"><div><Eyebrow>REGRESSION REPLAY</Eyebrow><h3>Every regression should become a contract.</h3></div><span>{state.replays.length} REPLAYS</span></div>
-            <div className="replay-grid">{state.replays.map((replay) => <article className="replay-card" key={replay.id}><div><code>{replay.id}</code><Status value={replay.candidateStatus} /></div><p><strong>Past regression</strong>{replay.pastRegression}</p><footer><span>STABLE <Status value={replay.stableStatus} /></span><span>CANDIDATE <Status value={replay.candidateStatus} /></span></footer></article>)}</div>
-          </div>
+          <details className={`detail-panel ${replayFailures.length ? 'detail-panel--danger' : ''}`}>
+            <summary><span><strong>REGRESSION REPLAY</strong><small>Memória executável de falhas antigas</small></span><span>{state.replays.length} replays · {replayFailures.length} FAIL</span></summary>
+            {replayFailures.some((replay) => replay.critical) && <div className="critical-banner">CRITICAL REPLAY FAILED</div>}
+            <div className="detail-content replay-list">{state.replays.map((replay) => <article key={replay.id}><div><code>{replay.id}</code><Status value={replay.candidateStatus} /></div><p>{replay.pastRegression}</p><small>STABLE <Status value={replay.stableStatus} /> · CANDIDATE <Status value={replay.candidateStatus} /></small></article>)}</div>
+          </details>
 
-          <div className="budget-section">
-            <div className="budget-copy"><Eyebrow>CHANGE BUDGET</Eyebrow><h3>Escopo definido<br />antes do trabalho.</h3><p>Budget owner <strong>HUMAN</strong></p><span className="lock">🔒 AGENT CANNOT ALTER</span>{budgetExceeded && <div className="scope-alert">SCOPE EXPANSION DETECTED</div>}</div>
-            <div className="budget-metrics"><BudgetMetric label="Files" used={state.candidate.usage.files} limit={state.budget.maxFiles} /><BudgetMetric label="Insertions" used={state.candidate.usage.insertions} limit={state.budget.maxInsertions} /><BudgetMetric label="Deletions" used={state.candidate.usage.deletions} limit={state.budget.maxDeletions} /><BudgetMetric label="Changed lines" used={state.candidate.usage.changedLines} limit={state.budget.maxChangedLines} /></div>
-            <div className="budget-edit"><span>LIMITS · {state.role.toUpperCase()}</span>{Object.entries(state.budget).map(([key, value]) => <label key={key}>{key.replace('max', '')}<input aria-label={key} type="number" min="0" value={value} disabled={state.role === 'agent'} onChange={(event) => setLimit(key as keyof typeof state.budget, event.target.value)} /></label>)}</div>
-          </div>
-
-          {humanCheck && <div className="human-check">
-            <div><Eyebrow>HUMAN CHECK</Eyebrow><h3>Visual acceptance</h3><p>A human approval for SHA X does not approve SHA Y.</p></div>
-            <div className="human-check__status"><span>Current evidence</span><Status value={humanStatus} /><Sha>{state.candidate.sha}</Sha></div>
-            <div className="human-actions"><button disabled={state.role === 'agent'} className="button button--pass" onClick={() => decideHuman('PASS')}>PASS</button><button disabled={state.role === 'agent'} className="button button--fail" onClick={() => decideHuman('FAIL')}>FAIL</button>{state.role === 'agent' && <small>Agent cannot approve Human Checks.</small>}</div>
-          </div>}
+          <details className={`detail-panel ${budgetExceeded ? 'detail-panel--danger' : ''}`}>
+            <summary><span><strong>CHANGE BUDGET</strong><small>Limite de escopo definido antes do trabalho</small></span><span>{budgetExceeded ? 'SCOPE EXPANSION DETECTED' : 'WITHIN BUDGET'}</span></summary>
+            {budgetExceeded && <div className="critical-banner">SCOPE EXPANSION DETECTED</div>}
+            <div className="detail-content budget-detail">
+              <div><BudgetLine label="Files" used={state.candidate.usage.files} limit={state.budget.maxFiles} /><BudgetLine label="Insertions" used={state.candidate.usage.insertions} limit={state.budget.maxInsertions} /><BudgetLine label="Deletions" used={state.candidate.usage.deletions} limit={state.budget.maxDeletions} /><BudgetLine label="Changed lines" used={state.candidate.usage.changedLines} limit={state.budget.maxChangedLines} /></div>
+              <div className="budget-controls"><span>Budget owner: HUMAN</span>{Object.entries(state.budget).map(([key, value]) => <label key={key}>{key.replace('max', '')}<input aria-label={key} type="number" min="0" value={value} disabled={state.role === 'agent'} onChange={(event) => setLimit(key as keyof typeof state.budget, event.target.value)} /></label>)}</div>
+            </div>
+          </details>
         </section>
 
-        <section className={`gate-section gate-section--${gate.status.toLowerCase()}`} id="gate">
-          <div className="gate-number">04</div><div className="gate-copy"><Eyebrow>PROMOTION DECISION</Eyebrow><h2>GATE</h2><p>READY ≠ PROMOTED</p></div>
-          <div className="gate-result"><Status value={gate.status} /><h3>{gate.status === 'READY' ? 'Evidence is sufficient.' : gate.status === 'BLOCKED' ? 'Promotion is refused.' : 'Human evidence is still required.'}</h3><ul>{gate.reasons.map((reason) => <li key={`${reason.code}-${reason.message}`}>{reason.message}</li>)}</ul></div>
-          <div className="gate-action"><span>Candidate <Sha>{state.candidate.sha}</Sha></span><button className="promote-button" disabled={gate.status !== 'READY' || state.role !== 'human'} onClick={promote}>PROMOVER A STABLE</button><small>Local simulation only. Gate is recomputed on click.</small></div>
-        </section>
+        <details className="demo-tools" data-section="demo-tools">
+          <summary><span><strong>Ferramentas da demonstração</strong><small>Estas ações não fazem parte do fluxo operacional real.</small></span></summary>
+          <div className="demo-tools__content">
+            <div><span>DEMO ROLE</span><div className="role-switch"><button className={state.role === 'human' ? 'active' : ''} onClick={() => setRole('human')}>HUMAN</button><button className={state.role === 'agent' ? 'active' : ''} onClick={() => setRole('agent')}>AGENT</button></div><small>Simula permissões; não é login.</small></div>
+            <button className="tool-button" onClick={simulateShaChange}>Simular mudança de SHA</button>
+            <button className="tool-button" onClick={confirmReset}>Reset Demo</button>
+            <p>{notice}</p>
+          </div>
+        </details>
 
-        <section className="history-section" id="history">
-          <div className="section-heading"><div><Eyebrow>05 / EXECUTABLE RECORD</Eyebrow><h2>HISTORY</h2></div><p>FAILED é evidência.<br />A STABLE permanece preservada.</p></div>
-          <div className="history-list">{state.history.map((cycle) => <article className={`history-card history-card--${cycle.result.toLowerCase()}`} key={cycle.id}>
-            <div className="history-index">{cycle.result === 'FAILED' ? '×' : '✓'}</div><div className="history-main"><Status value={cycle.result === 'PROMOTED' ? 'PASS' : 'FAIL'} /><h3>{cycle.cycle}</h3><p>{cycle.intent}</p></div>
-            <dl><div><dt>Candidate</dt><dd><Sha>{cycle.candidateSha}</Sha></dd></div><div><dt>Stable preserved</dt><dd><Sha>{cycle.stableSha ?? 'MISSING'}</Sha></dd></div></dl>
-            <div className="history-outcome"><strong>{cycle.result}</strong>{cycle.failureReason && <p>{cycle.failureReason}</p>}<span>{cycle.budget.usage.files} / {cycle.budget.limits.maxFiles} files</span></div>
-          </article>)}</div>
+        <section className="history" data-section="history">
+          <div className="section-title"><div><ProtocolLabel>HISTORY</ProtocolLabel><h2>Histórico preservado</h2><p>FAILED é evidência. Nenhuma tentativa é apagada silenciosamente.</p></div></div>
+          <div className="history-list">{state.history.map((cycle) => <article className={`history-card history-card--${cycle.result.toLowerCase()}`} key={cycle.id}><div><Status value={cycle.result === 'PROMOTED' ? 'PASS' : 'FAIL'} /><h3>{cycle.cycle}</h3><p>{cycle.intent}</p></div><dl><div><dt>Candidate</dt><dd><Sha>{cycle.candidateSha}</Sha></dd></div><div><dt>STABLE preservada</dt><dd><Sha>{cycle.stableSha ?? 'MISSING'}</Sha></dd></div></dl><div><strong>{cycle.result}</strong>{cycle.failureReason && <p>{cycle.failureReason}</p>}<small>{cycle.budget.usage.files} / {cycle.budget.limits.maxFiles} files</small></div></article>)}</div>
         </section>
       </main>
 
-      <footer className="footer"><p>GILGAL é um protocolo para agentes de IA programarem sem destruir a última versão boa, usando o código estável anterior como memória e prova de comportamento.</p><button className="text-button" onClick={confirmReset}>Reset Demo</button></footer>
+      <footer><strong>LOCAL DEMO MODE</strong><p>As evidências desta tela são demonstrativas. Nenhum repositório Git é alterado pela interface.</p></footer>
     </div>
   );
 }
