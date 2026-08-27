@@ -8,9 +8,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "tsc --noEmit && vite build",
+    "verify:gilgal": "node scripts/verify-gilgal.mjs",
     "sentinel:build": "npm --prefix .gilgal/reference/sentinel run build",
     "sentinel": "node .gilgal/reference/sentinel/dist/src/cli.js sentinel --config gilgal.sentinel.json",
-    "gilgal": "npm run sentinel --"
+    "gilgal": "node .gilgal/reference/sentinel/dist/src/cli.js"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
@@ -31,4 +32,3 @@
     "node": ">=20"
   }
 }
-
