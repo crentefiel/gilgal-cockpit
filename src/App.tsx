@@ -47,7 +47,8 @@ function BudgetLine({ label, used, limit }: { label: string; used: number; limit
 }
 
 export function App() {
-  const { state, gate, notice, setRole, decideHuman, changeBudget, simulateShaChange, promote, reset } = useGilgal();
+  const { state, gate, notice, mode, project, busy, setRole, decideHuman, changeBudget, simulateShaChange, promote, reset, refreshEvidence, runSentinel } = useGilgal();
+  const isLive = mode === 'live';
   const checks = state.checks.map((check) => ({ check, status: effectiveCheckStatus(check, state) }));
   const attentionChecks = checks.filter(({ status }) => status !== 'PASS');
   const passCount = checks.filter(({ status }) => status === 'PASS').length;
@@ -78,10 +79,21 @@ export function App() {
     <div className="app-shell">
       <header className="app-header">
         <div className="brand"><span className="brand-mark">G</span><div><strong>GILGAL COCKPIT</strong><p>A última versão boa permanece protegida.</p></div></div>
-        <span className="demo-badge"><i /> LOCAL DEMO MODE</span>
+        <span className={`demo-badge ${isLive ? 'demo-badge--live' : ''}`}><i /> {isLive ? 'PROJETO REAL CONECTADO' : mode === 'loading' ? 'CONECTANDO...' : 'LOCAL DEMO MODE'}</span>
       </header>
 
       <main>
+        <section className={`project-bar ${isLive ? 'project-bar--live' : ''}`} data-section="project-connection">
+          <div><ProtocolLabel>PROJETO EM VALIDAÇÃO</ProtocolLabel><strong>{isLive ? project?.name : 'Demonstração local'}</strong><code>{isLive ? project?.path : 'Dados fictícios para testes internos'}</code></div>
+          <div className="project-meta">{isLive && <><span>BRANCH <Sha>{project?.branch ?? '—'}</Sha></span><span>WORKTREE <b>{project?.dirty ? 'ALTERADA' : 'LIMPA'}</b></span></>}</div>
+          <div className="project-actions">
+            {isLive && <a className="secondary-link" href={project?.gameUrl} target="_blank" rel="noreferrer">ABRIR SINUCA</a>}
+            <button className="secondary-action" disabled={busy || !isLive} onClick={() => void refreshEvidence()}>ATUALIZAR</button>
+            <button className="primary-action" disabled={busy || !isLive} onClick={() => void runSentinel()}>{busy ? 'EXECUTANDO...' : 'EXECUTAR SENTINEL'}</button>
+          </div>
+          <p className="operation-notice" role="status">{notice}</p>
+        </section>
+
         <section className={`decision-center decision-center--${gate.status.toLowerCase()}`} data-section="gate">
           <div className="decision-main">
             <ProtocolLabel>GATE · DECISÃO DE PROMOÇÃO</ProtocolLabel>
@@ -97,17 +109,18 @@ export function App() {
 
           <div className="decision-actions">
             {gate.status === 'READY' ? (
-              <button className="primary-action" disabled={state.role !== 'human'} onClick={promote}>PROMOVER A STABLE</button>
+              isLive ? <><span className="action-title">Gate READY para o SHA atual.</span><button className="primary-action" disabled>PROMOÇÃO GIT EXIGE REVISÃO</button></> : <button className="primary-action" disabled={state.role !== 'human'} onClick={promote}>PROMOVER A STABLE</button>
             ) : humanCheck && ['PENDING', 'STALE'].includes(humanCheck.status) ? (
               <>
                 <span className="action-title">Revisão humana necessária</span>
-                <div><button className="primary-action" disabled={state.role === 'agent'} onClick={() => decideHuman('PASS')}>APROVAR</button><button className="secondary-action" disabled={state.role === 'agent'} onClick={() => decideHuman('FAIL')}>REPROVAR</button></div>
+                {isLive && <a className="game-check-link" href={project?.gameUrl} target="_blank" rel="noreferrer">1. ABRIR E TESTAR A SINUCA</a>}
+                <div><button className="primary-action" disabled={busy || state.role === 'agent'} onClick={() => decideHuman('PASS')}>{isLive ? '2. APROVAR ESTE SHA' : 'APROVAR'}</button><button className="secondary-action" disabled={busy || state.role === 'agent'} onClick={() => decideHuman('FAIL')}>REPROVAR</button></div>
                 {state.role === 'agent' && <small>O AGENT não pode aprovar este Human Check.</small>}
               </>
             ) : (
               <span className="blocked-action">Promoção indisponível enquanto houver falha crítica.</span>
             )}
-            <small>A ação é apenas uma simulação local. Nenhum Git será modificado.</small>
+            <small>{isLive ? 'A aprovação é gravada pelo Sentinel e vinculada aos SHAs atuais. A promoção Git não é automática.' : 'A ação é apenas uma simulação local. Nenhum Git será modificado.'}</small>
           </div>
         </section>
 
@@ -175,12 +188,12 @@ export function App() {
             {budgetExceeded && <div className="critical-banner">SCOPE EXPANSION DETECTED</div>}
             <div className="detail-content budget-detail">
               <div><BudgetLine label="Files" used={state.candidate.usage.files} limit={state.budget.maxFiles} /><BudgetLine label="Insertions" used={state.candidate.usage.insertions} limit={state.budget.maxInsertions} /><BudgetLine label="Deletions" used={state.candidate.usage.deletions} limit={state.budget.maxDeletions} /><BudgetLine label="Changed lines" used={state.candidate.usage.changedLines} limit={state.budget.maxChangedLines} /></div>
-              <div className="budget-controls"><span>Budget owner: HUMAN</span>{Object.entries(state.budget).map(([key, value]) => <label key={key}>{key.replace('max', '')}<input aria-label={key} type="number" min="0" value={value} disabled={state.role === 'agent'} onChange={(event) => setLimit(key as keyof typeof state.budget, event.target.value)} /></label>)}</div>
+              <div className="budget-controls"><span>Budget owner: HUMAN</span>{Object.entries(state.budget).map(([key, value]) => <label key={key}>{key.replace('max', '')}<input aria-label={key} type="number" min="0" value={value} disabled={isLive || state.role === 'agent'} onChange={(event) => setLimit(key as keyof typeof state.budget, event.target.value)} /></label>)}{isLive && <small>No modo real, altere o orçamento revisando gilgal.sentinel.json antes do ciclo.</small>}</div>
             </div>
           </details>
         </section>
 
-        <details className="demo-tools" data-section="demo-tools">
+        {!isLive && <details className="demo-tools" data-section="demo-tools">
           <summary><span><strong>Ferramentas da demonstração</strong><small>Estas ações não fazem parte do fluxo operacional real.</small></span></summary>
           <div className="demo-tools__content">
             <div><span>DEMO ROLE</span><div className="role-switch"><button className={state.role === 'human' ? 'active' : ''} onClick={() => setRole('human')}>HUMAN</button><button className={state.role === 'agent' ? 'active' : ''} onClick={() => setRole('agent')}>AGENT</button></div><small>Simula permissões; não é login.</small></div>
@@ -188,7 +201,7 @@ export function App() {
             <button className="tool-button" onClick={confirmReset}>Reset Demo</button>
             <p>{notice}</p>
           </div>
-        </details>
+        </details>}
 
         <section className="history" data-section="history">
           <div className="section-title"><div><ProtocolLabel>HISTORY</ProtocolLabel><h2>Histórico preservado</h2><p>FAILED é evidência. Nenhuma tentativa é apagada silenciosamente.</p></div></div>
@@ -196,7 +209,7 @@ export function App() {
         </section>
       </main>
 
-      <footer><strong>LOCAL DEMO MODE</strong><p>As evidências desta tela são demonstrativas. Nenhum repositório Git é alterado pela interface.</p></footer>
+      <footer><strong>{isLive ? 'MODO OPERACIONAL LOCAL' : 'LOCAL DEMO MODE'}</strong><p>{isLive ? `Evidências lidas do Sentinel em ${project?.path}. A STABLE não é promovida automaticamente.` : 'As evidências desta tela são demonstrativas. Nenhum repositório Git é alterado pela interface.'}</p></footer>
     </div>
   );
 }

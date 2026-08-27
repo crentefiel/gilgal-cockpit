@@ -52,5 +52,9 @@ if (!operations.includes("state.role !== 'human'") || !operations.includes('eval
   fail('promotion role guard or Gate recheck missing.');
 }
 
-if (!process.exitCode) process.stdout.write('REAL-GILGAL-01..08 PASS\n');
+// REAL-GILGAL-09: operational mode reads real evidence through a local bridge without implementing Git promotion.
+if (!existsSync('scripts/project-bridge.ts') || !existsSync('src/adapters/RealProjectAdapter.ts')) {
+  fail('real project bridge or adapter missing.');
+}
 
+if (!process.exitCode) process.stdout.write('REAL-GILGAL-01..09 PASS\n');

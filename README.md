@@ -30,9 +30,30 @@ The repository pins the official [`crentefiel/gilgal-ai-workflow`](https://githu
 - GILGAL Protocol `0.3.0`
 - GILGAL Sentinel reference implementation `0.2.0`
 
+## Modo operacional local
+
+Ao iniciar pela porta `5173`, o Cockpit conecta por padrão ao projeto-cobaia `D:\SINUCA-GILGAL`. A interface:
+
+- lê Git, orçamento e o último relatório Sentinel reais;
+- mostra STABLE e CANDIDATE com seus SHAs exatos;
+- executa o Sentinel pelo botão **EXECUTAR SENTINEL**;
+- abre a Sinuca pelo botão **ABRIR SINUCA**;
+- registra o Human Check pelo CLI oficial, vinculado aos SHAs atuais;
+- nunca promove a STABLE automaticamente.
+
+Para apontar o Cockpit para outro projeto local, defina antes de iniciar:
+
+```powershell
+$env:GILGAL_COCKPIT_PROJECT = 'D:\MEU-PROJETO'
+$env:GILGAL_COCKPIT_PROJECT_URL = 'http://127.0.0.1:5180/'
+npm.cmd run dev -- --host 127.0.0.1
+```
+
+O projeto deve possuir `gilgal.sentinel.json`, a referência oficial compilada em `.gilgal/reference/sentinel/dist` e um repositório Git válido.
+
 ## What V1 demonstrates
 
-The single-page Cockpit presents five connected areas: STABLE, CANDIDATE / WORK, SENTINEL, GATE and HISTORY. The initial demo contains a promoted cycle (`asfalto-c1`), a current candidate (`asfalto-c2`) and a preserved failed experiment (`asfalto-failed-refactor`). ASFALTO is demonstration data only.
+The single-page Cockpit presents five connected areas: STABLE, CANDIDATE / WORK, SENTINEL, GATE and HISTORY. Its default operational target is the real Sinuca GILGAL repository. ASFALTO remains available only as isolated test/demo fixture data.
 
 The domain model includes:
 
@@ -59,32 +80,25 @@ The real repository budget was declared before candidate implementation and is e
 
 ### READY is not PROMOTED
 
-READY means the configured evidence is sufficient. Promotion remains an explicit HUMAN decision. The UI promotion action is a local simulation and says clearly that no Git repository was modified.
+READY means the configured evidence is sufficient. Promotion remains an explicit HUMAN decision outside the browser; the operational UI does not merge or move Git references.
 
-## Local Demo Mode boundary
+## Local bridge boundary
 
-V1 uses `localStorage` through this seam:
+The browser calls a same-origin local Vite bridge. That bridge reads the configured project and is the only component allowed to invoke the Sentinel CLI:
 
 ```text
-Cockpit UI
-    ↓
-GilgalStateProvider
-    ↓
-GilgalAdapter
-    ↓
-LocalDemoAdapter
+Cockpit UI → RealProjectAdapter → /api/project → Git + Sentinel CLI
 ```
 
-The Gate applies verifiable rules to loaded demo state, but local browser data is not a security boundary. V1 does **not** claim that an agent cannot tamper with it.
+`LocalDemoAdapter` remains only for deterministic UI/domain tests. The operational page does not use fictitious localStorage evidence.
 
 V1 does not implement:
 
-- Git mutation, checkout, merge or worktree creation from the UI;
-- real Sentinel CLI execution from the browser;
+- automatic Git promotion, checkout, merge or worktree creation;
 - GitHub integration, backend, login, multi-user, cloud or webhooks;
 - AI agent execution.
 
-A future `SentinelGitAdapter` may consume real Sentinel CLI and Git evidence behind the same `GilgalAdapter` interface. It is intentionally not implemented in V1.
+The approval button records only the official manual Sentinel approval for the current exact STABLE/CANDIDATE pair. READY still does not mean PROMOTED.
 
 ## Real GILGAL dogfooding
 
@@ -122,4 +136,3 @@ The last command runs the official pinned Sentinel. Because `cockpit-visual-real
 ## License and claims
 
 This project makes no patent, worldwide novelty, exclusivity or impossibility-of-tampering claim. Git, worktrees, CI and testing are established engineering mechanisms; GILGAL is the documented protocol combining them around protected STABLE, isolated WORK, executable memory, replay, budget, evidence and explicit promotion.
-

@@ -35,6 +35,14 @@
       "command": "npm test"
     },
     {
+      "id": "cockpit-real-project-replay",
+      "name": "Real project evidence maps exact SHAs and stale reports safely",
+      "critical": true,
+      "type": "replay",
+      "origin": "Operational Sinuca integration contract: old evidence must never approve a new HEAD or dirty worktree",
+      "command": "npm test"
+    },
+    {
       "id": "cockpit-visual-real",
       "name": "COCKPIT_VISUAL_REAL",
       "critical": true,

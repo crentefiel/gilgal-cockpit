@@ -20,6 +20,7 @@
     "react-dom": "latest"
   },
   "devDependencies": {
+    "@types/node": "latest",
     "@testing-library/jest-dom": "latest",
     "@testing-library/react": "latest",
     "@types/react": "latest",
