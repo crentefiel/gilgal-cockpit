@@ -2,12 +2,52 @@
   "version": 1,
   "contracts": [
     {
-      "id": "real-gilgal-gate-engine",
-      "name": "Gate engine contracts pass",
+      "id": "real-gilgal-boundaries",
+      "name": "REAL-GILGAL-01 through REAL-GILGAL-08 repository boundaries",
       "critical": true,
       "type": "command",
+      "command": "npm run verify:gilgal"
+    },
+    {
+      "id": "cockpit-stale-approval-replay",
+      "name": "Stale approval never remains valid after SHA change",
+      "critical": true,
+      "type": "replay",
+      "origin": "COCKPIT-11 and COCKPIT-12 SHA-bound approval regression contract",
+      "description": "A human approval for SHA X must not approve SHA Y.",
       "command": "npm test"
+    },
+    {
+      "id": "cockpit-promotion-recheck-replay",
+      "name": "Promotion rechecks Gate and current exact SHA",
+      "critical": true,
+      "type": "replay",
+      "origin": "COCKPIT-14 and COCKPIT-24 promotion safety contracts",
+      "command": "npm test"
+    },
+    {
+      "id": "cockpit-ui-dom-scan-replay",
+      "name": "Primary Cockpit areas render within the UI contract",
+      "critical": true,
+      "type": "replay",
+      "origin": "Regression found during V1: repeated full semantic DOM scans exceeded the test timeout",
+      "description": "A single deterministic heading scan proves the five primary areas remain rendered.",
+      "command": "npm test"
+    },
+    {
+      "id": "cockpit-real-project-replay",
+      "name": "Real project evidence maps exact SHAs and stale reports safely",
+      "critical": true,
+      "type": "replay",
+      "origin": "Operational Sinuca integration contract: old evidence must never approve a new HEAD or dirty worktree",
+      "command": "npm test"
+    },
+    {
+      "id": "cockpit-visual-real",
+      "name": "COCKPIT_VISUAL_REAL",
+      "critical": true,
+      "type": "manual",
+      "instructions": "HUMAN must verify STABLE, CANDIDATE, Executable Memory, Change Budget, Gate, FAILED History, responsiveness, and editorial coherence."
     }
   ]
 }
-
