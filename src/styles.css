@@ -242,3 +242,50 @@ footer p { margin: 0; font-size: 10px; }
   .history-card > * + * { border-left: 0; border-top: 1px solid #2b2b2e; }
   footer { align-items: flex-start; flex-direction: column; padding: 24px 18px; }
 }
+
+
+/* Cockpit2 Fusion Review */
+.fusion-review { padding: 42px 34px; border-bottom: 1px solid #343438; background: #0d0f12; }
+.fusion-title { align-items: center; }
+.fusion-advisory-badge { padding: 7px 10px; border: 1px solid #65552f; color: #d4b56d; background: #211b0f; font: 700 8px 'DM Mono'; letter-spacing: .08em; }
+.fusion-layout { display: grid; grid-template-columns: minmax(260px, .8fr) minmax(0, 1.7fr); gap: 18px; }
+.fusion-config, .fusion-output { border: 1px solid #343438; background: #101114; padding: 20px; min-width: 0; }
+.fusion-config { display: grid; gap: 13px; align-content: start; }
+.fusion-config label { display: grid; gap: 7px; color: #8e8b84; font: 8px 'DM Mono'; text-transform: uppercase; letter-spacing: .06em; }
+.fusion-config label small { color: #625f5a; text-transform: none; letter-spacing: 0; }
+.fusion-config input, .fusion-config select { width: 100%; box-sizing: border-box; padding: 9px 10px; border: 1px solid #3c3c41; color: #f4f1ea; background: #0b0c0e; font: 10px 'DM Mono'; outline: none; }
+.fusion-config input:focus, .fusion-config select:focus { border-color: #8d7741; box-shadow: 0 0 0 1px #8d7741; }
+.fusion-row { display: grid; grid-template-columns: 1fr 1.5fr; gap: 10px; }
+.fusion-run { min-height: 42px; border: 1px solid #8d7741; color: #111113; background: #d2b66e; font: 800 9px 'DM Mono'; letter-spacing: .06em; cursor: pointer; }
+.fusion-run:disabled { opacity: .55; cursor: wait; }
+.fusion-rule, .fusion-warning { margin: 0; color: #8c876f; font: 8px/1.6 'DM Mono'; }
+.fusion-output { display: grid; gap: 14px; align-content: start; }
+.fusion-empty, .fusion-error { min-height: 160px; display: grid; align-content: center; justify-items: start; gap: 8px; padding: 18px; border: 1px dashed #3a3a3f; color: #8e8b84; }
+.fusion-empty strong { color: #bca364; font: 10px 'DM Mono'; }
+.fusion-empty p, .fusion-error p { margin: 0; max-width: 680px; font-size: 10px; line-height: 1.6; }
+.fusion-error { border-color: #713f37; background: #1d1110; }
+.fusion-error strong { color: #efb2a7; font: 10px 'DM Mono'; }
+.fusion-meta { display: flex; flex-wrap: wrap; gap: 8px; }
+.fusion-meta span { padding: 6px 8px; border: 1px solid #333337; color: #77757a; font: 8px 'DM Mono'; }
+.fusion-meta code { color: #c5c0b5; }
+.fusion-synthesis { border: 1px solid #454038; background: #13120f; padding: 18px; }
+.fusion-synthesis pre, .fusion-panel-list pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 10px 0 0; color: #d4d0c7; font: 10px/1.65 'DM Mono'; }
+.fusion-panel-details { border: 1px solid #343438; background: #0c0d0f; }
+.fusion-panel-details > summary { padding: 13px 15px; color: #bca364; font: 9px 'DM Mono'; }
+.fusion-panel-list { display: grid; gap: 8px; padding: 0 12px 12px; }
+.fusion-panel-list article { border: 1px solid #2e2e32; padding: 13px; background: #101114; }
+.fusion-panel-list article > div { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.fusion-panel-list article strong { color: #f4f1ea; font: 9px 'DM Mono'; }
+.fusion-panel-list article code { color: #88858a; font: 8px 'DM Mono'; }
+.fusion-panel-list article span { margin-left: auto; color: #9eb39f; font: 8px 'DM Mono'; text-transform: uppercase; }
+.fusion-warning { padding: 10px 12px; border-left: 2px solid #bca364; background: #17140d; color: #d0ba7a; }
+
+@media (max-width: 980px) {
+  .fusion-layout { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 680px) {
+  .fusion-review { padding: 34px 18px; }
+  .fusion-row { grid-template-columns: 1fr; }
+  .fusion-advisory-badge { display: none; }
+}

@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import { gilgalProjectBridge } from './scripts/project-bridge.ts';
 
 export default defineConfig({
+  base: './',
   plugins: [react(), gilgalProjectBridge()],
   test: {
     environment: 'jsdom',

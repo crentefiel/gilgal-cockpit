@@ -136,3 +136,40 @@ The last command runs the official pinned Sentinel. Because `cockpit-visual-real
 ## License and claims
 
 This project makes no patent, worldwide novelty, exclusivity or impossibility-of-tampering claim. Git, worktrees, CI and testing are established engineering mechanisms; GILGAL is the documented protocol combining them around protected STABLE, isolated WORK, executable memory, replay, budget, evidence and explicit promotion.
+
+
+## Cockpit2 Fusion Review
+
+The Cockpit2 desktop candidate adds an **advisory** multi-model review surface backed by FreeLLMAPI Fusion.
+
+The boundary is deliberate:
+
+```text
+Fusion Review = opinion
+Check         = evidence
+Human OK      = human observation
+Promote       = protocol decision
+```
+
+Fusion Review never changes Gate status, never creates PASS evidence, never records Human OK and never promotes STABLE.
+
+For local testing, run FreeLLMAPI on Windows and point Cockpit2 to its OpenAI-compatible base URL, normally:
+
+```text
+http://localhost:3001/v1
+```
+
+Paste the FreeLLMAPI unified key only into the Cockpit2 session. The key is **not** stored in localStorage by this UI. Panel size, explicit models, judge and `synthesize | best_of` strategy are configurable; `expose_panel` is always enabled so the human can inspect individual panel answers.
+
+### Windows installer
+
+The candidate includes an Electron/NSIS package. Build locally with:
+
+```powershell
+npm.cmd install
+npm.cmd run typecheck
+npm.cmd test
+npm.cmd run dist:win
+```
+
+The packaged desktop build starts in the safe local demo dataset while Fusion Review can call the configured FreeLLMAPI gateway. Real Git/Sentinel promotion authority is not added to the desktop wrapper.

@@ -1,0 +1,46 @@
+name: Build Cockpit2 Windows Installer
+
+on:
+  push:
+    branches:
+      - gilgal/candidate/cockpit2-fusion-review
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+      - name: Build web assets
+        run: npm run build
+
+      - name: Build NSIS installer
+        run: npx electron-builder --win nsis --x64 --publish never
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: GILGAL-Cockpit2-Windows-Installer
+          path: release/*.exe
+          if-no-files-found: error
+          retention-days: 14
