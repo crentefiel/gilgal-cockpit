@@ -1,5 +1,6 @@
 import { effectiveCheckStatus, isBudgetExceeded } from './domain/gate';
-import type { CheckStatus, GilgalCheck, ComparativeGateStatus } from './domain/types';
+import type { CheckStatus, GilgalCheck, ComparativeGateStatus, CockpitData, GateEvaluation } from './domain/types';
+import { getFusionPanel, requestFusionReview, type FusionReviewResult, type FusionStrategy } from './fusion';
 import { useGilgal } from './state/GilgalStateProvider';
 import { useState } from 'react';
 
@@ -45,6 +46,126 @@ function BudgetLine({ label, used, limit }: { label: string; used: number; limit
       <div><span>{label}</span><strong>{used} / {limit}</strong></div>
       <div className="budget-bar"><i style={{ width: `${width}%` }} /></div>
     </div>
+  );
+}
+
+function FusionReviewPanel({ state, gate }: { state: CockpitData; gate: GateEvaluation }) {
+  const [baseUrl, setBaseUrl] = useState(() => localStorage.getItem('gilgal.fusion.baseUrl') ?? 'http://localhost:3001/v1');
+  const [apiKey, setApiKey] = useState('');
+  const [k, setK] = useState(() => Number(localStorage.getItem('gilgal.fusion.k') ?? '4'));
+  const [models, setModels] = useState(() => localStorage.getItem('gilgal.fusion.models') ?? '');
+  const [judge, setJudge] = useState(() => localStorage.getItem('gilgal.fusion.judge') ?? '');
+  const [strategy, setStrategy] = useState<FusionStrategy>(() => (localStorage.getItem('gilgal.fusion.strategy') as FusionStrategy) ?? 'synthesize');
+  const [result, setResult] = useState<FusionReviewResult | null>(null);
+  const [error, setError] = useState('');
+  const [running, setRunning] = useState(false);
+
+  const remember = (key: string, value: string) => {
+    localStorage.setItem(key, value);
+  };
+
+  const run = async () => {
+    setRunning(true);
+    setError('');
+    setResult(null);
+    try {
+      const review = await requestFusionReview({
+        baseUrl,
+        apiKey,
+        k: Math.max(1, Math.min(8, Number.isFinite(k) ? k : 4)),
+        models: models.split(',').map((item) => item.trim()).filter(Boolean),
+        judge: judge.trim(),
+        strategy,
+      }, state, gate);
+      setResult(review);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const panel = getFusionPanel(result);
+  const summaryJudge = result?.summary?.judge;
+  const judgeLabel = summaryJudge && typeof summaryJudge === 'object'
+    ? [String((summaryJudge as Record<string, unknown>).platform ?? ''), String((summaryJudge as Record<string, unknown>).model ?? '')].filter(Boolean).join('/')
+    : typeof result?.details?.judge === 'string' ? result.details.judge : '';
+
+  return (
+    <section className="fusion-review" data-section="fusion-review">
+      <div className="section-title fusion-title">
+        <div>
+          <ProtocolLabel>FUSION REVIEW · ADVISORY</ProtocolLabel>
+          <h2>O que várias IAs acham que podemos ter esquecido?</h2>
+          <p>FreeLLMAPI Fusion analisa o candidato. A saída não altera Gate, checks, Human OK ou promote.</p>
+        </div>
+        <span className="fusion-advisory-badge">NÃO É EVIDÊNCIA</span>
+      </div>
+
+      <div className="fusion-layout">
+        <div className="fusion-config">
+          <label>FreeLLMAPI URL
+            <input value={baseUrl} onChange={(event) => { setBaseUrl(event.target.value); remember('gilgal.fusion.baseUrl', event.target.value); }} placeholder="http://localhost:3001/v1" />
+          </label>
+          <label>Unified API key
+            <input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="fla_..." autoComplete="off" />
+            <small>A chave fica apenas nesta sessão; não é gravada pelo Cockpit.</small>
+          </label>
+          <div className="fusion-row">
+            <label>Panel K
+              <input type="number" min="1" max="8" value={k} onChange={(event) => { const value = Number(event.target.value); setK(value); remember('gilgal.fusion.k', String(value)); }} />
+            </label>
+            <label>Strategy
+              <select value={strategy} onChange={(event) => { const value = event.target.value as FusionStrategy; setStrategy(value); remember('gilgal.fusion.strategy', value); }}>
+                <option value="synthesize">synthesize</option>
+                <option value="best_of">best_of</option>
+              </select>
+            </label>
+          </div>
+          <label>Modelos explícitos <small>(opcional, separados por vírgula)</small>
+            <input value={models} onChange={(event) => { setModels(event.target.value); remember('gilgal.fusion.models', event.target.value); }} placeholder="groq/model-a, google/model-b" />
+          </label>
+          <label>Judge <small>(opcional)</small>
+            <input value={judge} onChange={(event) => { setJudge(event.target.value); remember('gilgal.fusion.judge', event.target.value); }} placeholder="auto" />
+          </label>
+          <button className="fusion-run" disabled={running} onClick={() => void run()}>{running ? 'RODANDO PAINEL...' : 'RODAR FUSION REVIEW'}</button>
+          <p className="fusion-rule">Fusion procura riscos. Git + Contracts + Evidence + Human continuam governando a confiança.</p>
+        </div>
+
+        <div className="fusion-output">
+          {!result && !error && <div className="fusion-empty"><strong>ADVISORY READY</strong><p>Configure o FreeLLMAPI local e rode a revisão. O candidato enviado ao painel é o SHA <Sha>{state.candidate.sha}</Sha>.</p></div>}
+          {error && <div className="fusion-error"><strong>FUSION NÃO EXECUTOU</strong><p>{error}</p></div>}
+          {result && (
+            <>
+              <div className="fusion-meta">
+                <span>Candidate <Sha>{state.candidate.sha}</Sha></span>
+                {result.route && <span>Route <code>{result.route}</code></span>}
+                {judgeLabel && <span>Judge <code>{judgeLabel}</code></span>}
+                <span>Panel {panel.length || '—'}</span>
+              </div>
+              <article className="fusion-synthesis">
+                <ProtocolLabel>SÍNTESE DO JUDGE</ProtocolLabel>
+                <pre>{result.content || 'Sem conteúdo sintetizado.'}</pre>
+              </article>
+              {panel.length > 0 && (
+                <details className="fusion-panel-details">
+                  <summary>Ver opiniões individuais do painel ({panel.length})</summary>
+                  <div className="fusion-panel-list">
+                    {panel.map((entry, index) => (
+                      <article key={`${entry.platform ?? 'provider'}-${entry.model ?? index}-${index}`}>
+                        <div><strong>Response {index + 1}</strong><code>{[entry.platform, entry.model].filter(Boolean).join('/') || 'modelo não informado'}</code><span>{entry.status ?? 'unknown'}</span></div>
+                        <pre>{entry.content ?? entry.error ?? 'Sem conteúdo.'}</pre>
+                      </article>
+                    ))}
+                  </div>
+                </details>
+              )}
+              <p className="fusion-warning">ADVISORY ONLY — isto não é evidência nem autorização de promote.</p>
+            </>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -211,6 +332,8 @@ export function App() {
           </div>
           <div className="passed-strip"><span>Verificações concluídas</span>{checks.filter(({ status }) => status === 'PASS').map(({ check }) => <span className="pass-chip" key={check.id}>✓ {check.label}</span>)}{!budgetExceeded && <span className="pass-chip">✓ Change Budget</span>}</div>
         </section>
+
+        <FusionReviewPanel state={state} gate={gate} />
 
         <section className="technical" data-section="sentinel-details">
           <div className="section-title"><div><ProtocolLabel>SEGUNDO NÍVEL</ProtocolLabel><h2>Evidências técnicas</h2><p>Abra somente quando precisar investigar por que o Gate decidiu.</p></div></div>
