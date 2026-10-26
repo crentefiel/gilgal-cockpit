@@ -1,7 +1,7 @@
 {
   "name": "gilgal-cockpit",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,9 @@
     "verify:gilgal": "node scripts/verify-gilgal.mjs",
     "sentinel:build": "npm --prefix .gilgal/reference/sentinel run build",
     "sentinel": "node .gilgal/reference/sentinel/dist/src/cli.js sentinel --config gilgal.sentinel.json",
-    "gilgal": "node .gilgal/reference/sentinel/dist/src/cli.js"
+    "gilgal": "node .gilgal/reference/sentinel/dist/src/cli.js",
+    "desktop": "npm run build && electron .",
+    "dist:win": "npm run build && electron-builder --win nsis --x64"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
@@ -27,9 +29,41 @@
     "@types/react-dom": "latest",
     "jsdom": "latest",
     "typescript": "latest",
-    "vitest": "latest"
+    "vitest": "latest",
+    "electron": "latest",
+    "electron-builder": "latest"
   },
   "engines": {
     "node": ">=20"
+  },
+  "main": "electron/main.cjs",
+  "build": {
+    "appId": "com.crentefiel.gilgal.cockpit2",
+    "productName": "GILGAL Cockpit2",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "artifactName": "GILGAL-Cockpit2-Setup-${version}.${ext}"
   }
 }
